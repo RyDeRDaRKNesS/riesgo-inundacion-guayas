@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Riesgo de Inundación · Provincia del Guayas</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --azul-noche: #0b1220;
+    --azul-panel: #101a2c;
+    --azul-linea: #1e2c45;
+    --agua: #38bdf8;
+    --agua-tenue: #7dd3fc;
+    --texto: #e7ecf5;
+    --texto-tenue: #93a0b8;
+    --bajo: #22c55e;
+    --medio: #eab308;
+    --alto: #ef4444;
+    --sin-dato: #556074;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--azul-noche);color:var(--texto);
+    font-family:'Space Grotesk',system-ui,sans-serif;}
+  #app{display:grid;grid-template-columns:340px 1fr;height:100vh;}
+  @media (max-width:860px){ #app{grid-template-columns:1fr;grid-template-rows:auto 1fr;height:auto;min-height:100vh;}}
+
+  /* ---------- Panel lateral ---------- */
+  #panel{background:var(--azul-panel);border-right:1px solid var(--azul-linea);
+    padding:22px 20px;display:flex;flex-direction:column;gap:18px;overflow-y:auto;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--agua-tenue);}
+  h1{font-size:22px;line-height:1.25;margin:4px 0 2px;font-weight:700;}
+  .subt{color:var(--texto-tenue);font-size:13px;line-height:1.5;margin:0;}
+
+  .stat-row{display:flex;gap:10px;margin-top:6px;}
+  .stat{flex:1;background:var(--azul-noche);border:1px solid var(--azul-linea);
+    border-radius:10px;padding:10px 12px;}
+  .stat .n{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;}
+  .stat .l{font-size:11px;color:var(--texto-tenue);text-transform:uppercase;letter-spacing:.06em;}
+  .stat.bajo .n{color:var(--bajo);} .stat.medio .n{color:var(--medio);} .stat.alto .n{color:var(--alto);}
+
+  .leyenda{border-top:1px solid var(--azul-linea);padding-top:14px;}
+  .leyenda h2{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--texto-tenue);
+    margin:0 0 10px;}
+  .item{display:flex;align-items:center;gap:10px;font-size:13.5px;padding:4px 0;}
+  .sw{width:14px;height:14px;border-radius:4px;flex:none;}
+
+  #detalle{border-top:1px solid var(--azul-linea);padding-top:14px;flex:1;}
+  #detalle h2{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--texto-tenue);margin:0 0 10px;}
+  #detalle-body{font-size:14px;color:var(--texto-tenue);}
+  #detalle-body .nombre{color:var(--texto);font-size:18px;font-weight:600;margin-bottom:2px;}
+  #detalle-body .badge{display:inline-block;padding:3px 10px;border-radius:999px;
+    font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    margin:8px 0;color:#0b1220;font-weight:600;}
+  #detalle-body dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin-top:10px;}
+  #detalle-body dt{color:var(--texto-tenue);}
+  #detalle-body dd{margin:0;color:var(--texto);font-family:'IBM Plex Mono',monospace;font-size:13px;}
+
+  footer{font-size:11px;color:var(--texto-tenue);border-top:1px solid var(--azul-linea);padding-top:12px;}
+  footer a{color:var(--agua-tenue);}
+
+  /* ---------- Mapa ---------- */
+  #map-wrap{position:relative;}
+  #map{position:absolute;inset:0;background:var(--azul-noche);}
+  @media (max-width:860px){ #map-wrap{height:70vh;position:relative;} #map{position:relative;height:100%;}}
+
+  .leaflet-popup-content-wrapper{background:var(--azul-panel);color:var(--texto);border-radius:10px;}
+  .leaflet-popup-tip{background:var(--azul-panel);}
+  .popup-title{font-weight:700;font-size:15px;margin-bottom:2px;}
+  .popup-sub{color:var(--texto-tenue);font-size:12px;margin-bottom:6px;}
+  .popup-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;
+    font-family:'IBM Plex Mono',monospace;text-transform:uppercase;color:#0b1220;font-weight:600;}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <div>
+      <div class="eyebrow">Segundo Parcial · Ciencia de Datos</div>
+      <h1>Riesgo de inundación por parroquia — Guayas</h1>
+      <p class="subt">Clasificación supervisada (Regresión Logística, Árbol de Decisión y Ensamble)
+        sobre variables climáticas, hidrológicas y socio-territoriales de las 54 parroquias
+        de la provincia del Guayas, Ecuador.</p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat bajo"><div class="n" id="n-bajo">–</div><div class="l">Bajo</div></div>
+      <div class="stat medio"><div class="n" id="n-medio">–</div><div class="l">Medio</div></div>
+      <div class="stat alto"><div class="n" id="n-alto">–</div><div class="l">Alto</div></div>
+    </div>
+
+    <div class="leyenda">
+      <h2>Leyenda</h2>
+      <div class="item"><span class="sw" style="background:var(--bajo)"></span> Riesgo bajo</div>
+      <div class="item"><span class="sw" style="background:var(--medio)"></span> Riesgo medio</div>
+      <div class="item"><span class="sw" style="background:var(--alto)"></span> Riesgo alto</div>
+      <div class="item"><span class="sw" style="background:var(--sin-dato)"></span> Sin dato</div>
+    </div>
+
+    <div id="detalle">
+      <h2>Parroquia seleccionada</h2>
+      <div id="detalle-body">Pase el cursor sobre una parroquia para ver su nombre, cantón y
+        provincia. Haga clic para ver la categoría de riesgo y el score del modelo.</div>
+    </div>
+
+    <footer>
+      Fuentes: INEC (Clasificador Geográfico Estadístico 2026, Censo 2022),
+      OpenStreetMap contributors, INAMHI / Climate-Data.org (precipitación, interpolación IDW).<br/>
+      Proyecto académico — no constituye un sistema oficial de alerta temprana.
+    </footer>
+  </aside>
+
+  <div id="map-wrap"><div id="map"></div></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const RISK_COLORS = {{ risk_colors | tojson }};
+const map = L.map('map', {zoomControl:true}).setView([-2.05, -79.9], 8);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+  subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+const detalleBody = document.getElementById('detalle-body');
+
+function badge(riesgo){
+  const color = RISK_COLORS[riesgo] || '#556074';
+  return `<span class="badge" style="background:${color}">${riesgo}</span>`;
+}
+
+function style(feature){
+  const c = feature.properties.color || '#556074';
+  return {color: '#0b1220', weight: 1, fillColor: c, fillOpacity: 0.75};
+}
+
+function highlight(e){
+  const layer = e.target;
+  layer.setStyle({weight: 2.5, color: '#e7ecf5', fillOpacity: 0.9});
+  layer.bringToFront();
+}
+function reset(e){ geoLayer.resetStyle(e.target); }
+
+function onEachFeature(feature, layer){
+  const p = feature.properties;
+  layer.on({
+    mouseover: (e) => {
+      highlight(e);
+      detalleBody.innerHTML = `<div class="nombre">${p.parroquia}</div>
+        <div>Cantón: ${p.canton}</div><div>Provincia: Guayas</div>`;
+    },
+    mouseout: reset,
+    click: (e) => {
+      map.fitBounds(e.target.getBounds(), {maxZoom: 11});
+      const scoreTxt = (p.score !== null && p.score !== undefined) ? (p.score*100).toFixed(1)+'%' : 's/d';
+      detalleBody.innerHTML = `<div class="nombre">${p.parroquia}</div>
+        <div>Cantón: ${p.canton} · Provincia: Guayas</div>
+        ${badge(p.riesgo_inundacion)}
+        <dl>
+          <dt>Score del modelo</dt><dd>${scoreTxt}</dd>
+          <dt>Área (km²)</dt><dd>${p.area_km2 ? p.area_km2.toFixed(1) : 's/d'}</dd>
+          <dt>Densidad pobl.</dt><dd>${p.densidad_pobl ? Math.round(p.densidad_pobl)+' hab/km²' : 's/d'}</dd>
+          <dt>Dist. a río</dt><dd>${p.dist_rio_m ? Math.round(p.dist_rio_m)+' m' : 's/d'}</dd>
+          <dt>Precip. anual est.</dt><dd>${p.precip_anual_mm_idw ? Math.round(p.precip_anual_mm_idw)+' mm' : 's/d'}</dd>
+        </dl>`;
+    }
+  });
+  layer.bindPopup(`<div class="popup-title">${p.parroquia}</div>
+    <div class="popup-sub">${p.canton} · Guayas</div>
+    ${badge(p.riesgo_inundacion)}`);
+}
+
+let geoLayer;
+fetch('/api/parroquias').then(r => r.json()).then(geo => {
+  geoLayer = L.geoJSON(geo, {style, onEachFeature}).addTo(map);
+  map.fitBounds(geoLayer.getBounds(), {padding:[20,20]});
+});
+
+fetch('/api/resumen').then(r => r.json()).then(res => {
+  document.getElementById('n-bajo').textContent = res.bajo ?? 0;
+  document.getElementById('n-medio').textContent = res.medio ?? 0;
+  document.getElementById('n-alto').textContent = res.alto ?? 0;
+});
+</script>
+</body>
+</html>
