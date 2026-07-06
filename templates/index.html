@@ -92,6 +92,13 @@
       <div class="stat alto"><div class="n" id="n-alto">–</div><div class="l">Alto</div></div>
     </div>
 
+    <div>
+      <input id="buscador" type="text" placeholder="Buscar parroquia o cantón..."
+        style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--azul-linea);
+        background:var(--azul-noche);color:var(--texto);font-family:'Space Grotesk',sans-serif;font-size:13px;" />
+      <div id="resultados-busqueda" style="margin-top:6px;max-height:120px;overflow-y:auto;"></div>
+    </div>
+
     <div class="leyenda">
       <h2>Leyenda</h2>
       <div class="item"><span class="sw" style="background:var(--bajo)"></span> Riesgo bajo</div>
@@ -103,13 +110,41 @@
     <div id="detalle">
       <h2>Parroquia seleccionada</h2>
       <div id="detalle-body">Pase el cursor sobre una parroquia para ver su nombre, cantón y
-        provincia. Haga clic para ver la categoría de riesgo y el score del modelo.</div>
+        provincia. Haga clic para ver la categoría de riesgo y la confianza del modelo.</div>
     </div>
 
+    <div class="leyenda">
+      <h2>Top 5 · mayor riesgo</h2>
+      <div id="top-riesgo" style="font-size:13px;color:var(--texto-tenue);">Cargando…</div>
+    </div>
+
+    <details class="leyenda" style="cursor:pointer;">
+      <summary style="font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--texto-tenue);">Metodología</summary>
+      <p style="font-size:12.5px;color:var(--texto-tenue);line-height:1.5;margin-top:8px;">
+        El riesgo se estimó a partir de variables climáticas (precipitación anual y
+        estacional, INAMHI), hidrológicas (distancia a ríos, densidad de red hídrica,
+        OpenStreetMap) y socio-territoriales (densidad poblacional, INEC). Se
+        entrenaron Regresión Logística, Árbol de Decisión y un Ensamble; el modelo
+        final se seleccionó automáticamente por mejor F1-score y recall en la clase
+        "alto". <strong>Modelo final: {{ modelo_final }}</strong>.
+      </p>
+      <p style="font-size:11.5px;color:var(--texto-tenue);line-height:1.5;">
+        La "confianza del modelo" indica qué tan seguro está el modelo de su
+        predicción — no es lo mismo que "nivel de riesgo". Una parroquia de riesgo
+        bajo puede tener confianza muy alta (ej. 99%) en que efectivamente es de
+        riesgo bajo.
+      </p>
+    </details>
+
+    <a href="/descargar-predicciones" style="display:block;text-align:center;padding:8px;
+      border:1px solid var(--azul-linea);border-radius:8px;color:var(--agua-tenue);
+      text-decoration:none;font-size:12.5px;">Descargar predicciones (CSV)</a>
+
     <footer>
-      Fuentes: INEC (Clasificador Geográfico Estadístico 2026, Censo 2022),
-      OpenStreetMap contributors, INAMHI / Climate-Data.org (precipitación, interpolación IDW).<br/>
-      Proyecto académico — no constituye un sistema oficial de alerta temprana.
+      Fuentes: INEC (Censo 2022 y límites parroquiales), INAMHI (precipitación mensual
+      histórica), OpenStreetMap contributors (red hídrica). Proyecto académico — no
+      constituye un sistema oficial de alerta temprana.<br/>
+      Última actualización: {{ ultima_actualizacion }}
     </footer>
   </aside>
 
@@ -161,7 +196,7 @@ function onEachFeature(feature, layer){
         <div>Cantón: ${p.canton} · Provincia: Guayas</div>
         ${badge(p.riesgo_inundacion)}
         <dl>
-          <dt>Score del modelo</dt><dd>${scoreTxt}</dd>
+          <dt>Confianza del modelo</dt><dd>${scoreTxt}</dd>
           <dt>Área (km²)</dt><dd>${p.area_km2 ? p.area_km2.toFixed(1) : 's/d'}</dd>
           <dt>Densidad pobl.</dt><dd>${p.densidad_pobl ? Math.round(p.densidad_pobl)+' hab/km²' : 's/d'}</dd>
           <dt>Dist. a río</dt><dd>${p.dist_rio_m ? Math.round(p.dist_rio_m)+' m' : 's/d'}</dd>
@@ -169,15 +204,55 @@ function onEachFeature(feature, layer){
         </dl>`;
     }
   });
+  const scorePopup = (p.score !== null && p.score !== undefined) ? (p.score*100).toFixed(1)+'%' : 's/d';
   layer.bindPopup(`<div class="popup-title">${p.parroquia}</div>
     <div class="popup-sub">${p.canton} · Guayas</div>
-    ${badge(p.riesgo_inundacion)}`);
+    ${badge(p.riesgo_inundacion)}
+    <div style="margin-top:6px;font-size:12px;">Confianza del modelo: <strong>${scorePopup}</strong></div>`);
 }
 
 let geoLayer;
+let allFeatures = [];
 fetch('/api/parroquias').then(r => r.json()).then(geo => {
   geoLayer = L.geoJSON(geo, {style, onEachFeature}).addTo(map);
   map.fitBounds(geoLayer.getBounds(), {padding:[20,20]});
+  allFeatures = geo.features;
+
+  const orden = {alto: 0, medio: 1, bajo: 2};
+  const top5 = [...allFeatures]
+    .filter(f => f.properties.riesgo_inundacion !== 'sin dato')
+    .sort((a, b) => (orden[a.properties.riesgo_inundacion] - orden[b.properties.riesgo_inundacion])
+      || (b.properties.score - a.properties.score))
+    .slice(0, 5);
+  document.getElementById('top-riesgo').innerHTML = top5.map(f => {
+    const p = f.properties;
+    return `<div style="display:flex;justify-content:space-between;padding:3px 0;">
+      <span>${p.parroquia}</span>${badge(p.riesgo_inundacion)}</div>`;
+  }).join('');
+});
+
+const buscador = document.getElementById('buscador');
+const resultadosBusqueda = document.getElementById('resultados-busqueda');
+buscador.addEventListener('input', () => {
+  const q = buscador.value.trim().toLowerCase();
+  resultadosBusqueda.innerHTML = '';
+  if (q.length < 2 || !allFeatures.length) return;
+  const matches = allFeatures.filter(f =>
+    f.properties.parroquia.toLowerCase().includes(q) || f.properties.canton.toLowerCase().includes(q)
+  ).slice(0, 6);
+  matches.forEach(f => {
+    const div = document.createElement('div');
+    div.textContent = `${f.properties.parroquia} (${f.properties.canton})`;
+    div.style.cssText = 'padding:5px 8px;font-size:12.5px;cursor:pointer;border-radius:6px;color:var(--texto);';
+    div.onmouseover = () => div.style.background = 'var(--azul-linea)';
+    div.onmouseout = () => div.style.background = 'transparent';
+    div.onclick = () => {
+      const layer = geoLayer.getLayers().find(l => l.feature.properties.pcode === f.properties.pcode);
+      if (layer) { map.fitBounds(layer.getBounds(), {maxZoom: 11}); layer.fire('click'); layer.openPopup(); }
+      resultadosBusqueda.innerHTML = ''; buscador.value = '';
+    };
+    resultadosBusqueda.appendChild(div);
+  });
 });
 
 fetch('/api/resumen').then(r => r.json()).then(res => {

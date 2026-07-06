@@ -8,15 +8,16 @@ clasificación para las 54 parroquias de la provincia del Guayas, Ecuador.
 
 ```
 webapp/
-├── app.py                          # Backend Flask (rutas / y /api/*)
+├── app.py                          # Backend Flask (rutas /, /api/*, /descargar-predicciones)
 ├── wsgi.py                         # Entrypoint WSGI (PythonAnywhere, Hostinger, etc.)
 ├── Procfile                        # Entrypoint para Render / Railway (gunicorn)
 ├── requirements.txt
 ├── parroquias_guayas.geojson       # Polígonos de parroquias (WGS84)
-├── predicciones_riesgo_guayas.csv  # Salida del notebook (pcode, riesgo, score)
+├── predicciones_riesgo_guayas.csv  # Salida del notebook (pcode, riesgo, confianza, modelo_final)
 ├── templates/
-│   └── index.html                  # Mapa Leaflet + panel lateral
-└── static/                         # (vacío, reservado para assets propios)
+│   └── index.html                  # Mapa Leaflet + panel lateral (buscador, top-5, metodología)
+└── static/
+    └── predicciones_riesgo_guayas.csv  # Copia servida para descarga directa
 ```
 
 El emparejamiento entre el GeoJSON y las predicciones se realiza por
