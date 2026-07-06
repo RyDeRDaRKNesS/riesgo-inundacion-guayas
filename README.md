@@ -66,22 +66,6 @@ opciones:
 4. Start command: `gunicorn app:app --bind 0.0.0.0:$PORT` (ya incluido en `Procfile`).
 5. Render asigna una URL pública tipo `https://<nombre>.onrender.com`.
 
-### Opción: Railway
-1. https://railway.app → **New Project → Deploy from GitHub repo**.
-2. Railway detecta `requirements.txt` y `Procfile` automáticamente.
-3. Generar dominio público en **Settings → Networking → Generate Domain**.
-
-### Sobre Hostinger
-Hostinger **no está en la lista de plataformas permitidas por el enunciado**
-del proyecto (solo PythonAnywhere, Render o Railway). Si el plan de
-Hostinger contratado incluye la función **"Python App"** (planes Business/
-Cloud con acceso a `passenger_wsgi.py`), la app es compatible: renombrar o
-enlazar `wsgi.py` como `passenger_wsgi.py` y apuntar el "Application startup
-file" al proyecto. Si el plan es solo hosting compartido de PHP, Hostinger
-**no podrá ejecutar Flask** y se recomienda usar PythonAnywhere en su lugar
-para cumplir el requisito de la materia, y opcionalmente enlazar un dominio
-propio de Hostinger a esa URL mediante un registro CNAME.
-
 ## Notas de robustez para producción
 - El servidor de desarrollo de Flask (`python app.py`) **no debe usarse en
   producción**; en PythonAnywhere se usa su propio servidor WSGI, y en
